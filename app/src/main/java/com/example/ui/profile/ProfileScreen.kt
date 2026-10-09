@@ -34,7 +34,7 @@ import com.example.viewmodel.TransactionMateViewModel
 @Composable
 fun ProfileScreen(
     viewModel: TransactionMateViewModel,
-    onOpenServerConfig: () -> Unit,
+    onOpenServerConfig: () -> Unit = {},
     onNavigateToAppearance: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -42,7 +42,6 @@ fun ProfileScreen(
     val profile by viewModel.userProfile.collectAsState()
     val activeUsername by viewModel.activeUsername.collectAsState()
     val activeUserName by viewModel.activeUserName.collectAsState()
-    val baseUrl by viewModel.baseUrl.collectAsState()
     val currency by viewModel.currencySymbol.collectAsState()
     val currentThemeMode by viewModel.themeMode.collectAsState()
     val currentThemeColor by viewModel.themeColor.collectAsState()
@@ -62,12 +61,6 @@ fun ProfileScreen(
                         modifier = Modifier.testTag("refresh_profile_button")
                     ) {
                         Icon(Icons.Default.Refresh, contentDescription = "Refresh")
-                    }
-                    IconButton(
-                        onClick = onOpenServerConfig,
-                        modifier = Modifier.testTag("profile_server_config_button")
-                    ) {
-                        Icon(Icons.Default.Dns, contentDescription = "Server Config")
                     }
                 }
             )
@@ -276,39 +269,6 @@ fun ProfileScreen(
                 }
             }
 
-            // Server Config Card
-            item {
-                Card(
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Active Backend Endpoint",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                text = baseUrl,
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
-                        FilledTonalButton(onClick = onOpenServerConfig) {
-                            Text("Change")
-                        }
-                    }
-                }
-            }
-
             // Bank Accounts Section
             item {
                 Row(
@@ -381,7 +341,7 @@ fun ProfileScreen(
                         }
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = "Email Financial Report: Triggers backend endpoint GET /send/report/ to dispatch a financial summary email.",
+                            text = "Email Financial Report: Dispatch an official summary of your financial activity to your registered email address.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -410,7 +370,7 @@ fun ProfileScreen(
             title = { Text("Confirm Email Dispatch", fontWeight = FontWeight.Bold) },
             text = {
                 Text(
-                    text = "Are you sure you want to trigger GET /send/report/? This will dispatch an official financial report email from the server."
+                    text = "Are you sure you want to send your financial report? This will dispatch a summary email to your registered address."
                 )
             },
             confirmButton = {
@@ -793,7 +753,7 @@ fun CreateProfileDialog(
                 if (isSubmitting) {
                     CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
                 } else {
-                    Text("Register User (POST /create)")
+                    Text("Register User")
                 }
             }
         },
@@ -817,7 +777,7 @@ fun SwitchUserDialog(
         text = {
             Column {
                 Text(
-                    text = "Enter a username to load their account profile, transactions, budgets, and QR codes from the backend.",
+                    text = "Enter a username to load their account profile, transactions, budgets, and payment QR codes.",
                     style = MaterialTheme.typography.bodyMedium
                 )
                 Spacer(modifier = Modifier.height(12.dp))

@@ -174,9 +174,9 @@ fun QrScreen(
                     } else {
                         EmptyStateCard(
                             title = "No QR Codes Available",
-                            description = "Link a bank account with UPI VPA or tap Generate to request a payment QR code from the server.",
+                            description = "Link a bank account with UPI VPA or tap Generate to create a payment QR code.",
                             icon = Icons.Default.QrCode2,
-                            actionButtonText = "Request from API",
+                            actionButtonText = "Generate QR Code",
                             onActionClick = {
                                 viewModel.loadQrCodes(
                                     bankName = selectedAccount?.bankName,

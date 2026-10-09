@@ -166,7 +166,7 @@ class TransactionMateViewModel(
                 is NetworkResult.Success -> {
                     _connectionState.value = ConnectionState.Connected(
                         url = url,
-                        message = result.data.message ?: "Server is healthy"
+                        message = result.data.message ?: "Service is available"
                     )
                 }
                 is NetworkResult.Error -> {
@@ -183,7 +183,7 @@ class TransactionMateViewModel(
     fun updateBaseUrl(newUrl: String) {
         viewModelScope.launch {
             preferences.setBaseUrl(newUrl)
-            _actionStatusMessage.emit("Updated Base URL to $newUrl")
+            _actionStatusMessage.emit("Configuration updated")
             testConnection()
             refreshAll()
         }
@@ -232,7 +232,7 @@ class TransactionMateViewModel(
         viewModelScope.launch {
             val req = CreateUserRequest(
                 name = name.trim(),
-                mobileNumber = mobileNumber.trim(),
+                mobile = mobileNumber.trim(),
                 email = email.trim(),
                 username = username.trim(),
                 accounts = accounts

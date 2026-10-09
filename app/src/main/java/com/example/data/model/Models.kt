@@ -1,43 +1,247 @@
 package com.example.data.model
 
+import com.squareup.moshi.FromJson
 import com.squareup.moshi.Json
+import com.squareup.moshi.JsonAdapter
 import com.squareup.moshi.JsonClass
+import com.squareup.moshi.JsonReader
+import com.squareup.moshi.JsonWriter
+import com.squareup.moshi.ToJson
 
 /**
- * Common Bank Account model used in profile, payments, and QR generation
+ * Common Bank Account model used in profile, payments, and QR generation.
+ * Custom JSON adapter serializes to { "type", "bankName", "number", "balance", "vpa" }
+ * and flexibly deserializes both camelCase and snake_case variants.
  */
-@JsonClass(generateAdapter = true)
 data class BankAccount(
-    @Json(name = "type") val type: String = "Savings",
-    @Json(name = "bank_name") val bankName: String = "",
-    @Json(name = "account_number") val accountNumber: String = "",
-    @Json(name = "balance") val balance: Double = 0.0,
-    @Json(name = "upi_vpa") val upiVpa: String = ""
-)
+    val type: String = "Savings",
+    val bankName: String = "",
+    val accountNumber: String = "",
+    val balance: Double = 0.0,
+    val upiVpa: String = ""
+) {
+    fun toAccountRequest(): AccountRequest = AccountRequest(
+        type = type,
+        bankName = bankName,
+        number = accountNumber,
+        balance = balance,
+        vpa = upiVpa
+    )
+}
 
 /**
- * User Profile / Account information
+ * Dedicated Account request data model for POST /create matching api.doc schema.
  */
 @JsonClass(generateAdapter = true)
+data class AccountRequest(
+    @Json(name = "type") val type: String = "savings",
+    @Json(name = "bankName") val bankName: String = "",
+    @Json(name = "number") val number: String = "",
+    @Json(name = "balance") val balance: Double = 0.0,
+    @Json(name = "vpa") val vpa: String = ""
+) {
+    fun toBankAccount(): BankAccount = BankAccount(
+        type = type,
+        bankName = bankName,
+        accountNumber = number,
+        balance = balance,
+        upiVpa = vpa
+    )
+}
+
+class BankAccountJsonAdapter {
+    @FromJson
+    fun fromJson(reader: JsonReader): BankAccount {
+        var type = "Savings"
+        var bankName = ""
+        var accountNumber = ""
+        var balance = 0.0
+        var upiVpa = ""
+
+        if (reader.peek() == JsonReader.Token.NULL) {
+            reader.nextNull<Any?>()
+            return BankAccount()
+        }
+
+        reader.beginObject()
+        while (reader.hasNext()) {
+            when (reader.nextName()) {
+                "type" -> {
+                    type = if (reader.peek() == JsonReader.Token.NULL) {
+                        reader.nextNull<Any?>()
+                        "Savings"
+                    } else reader.nextString()
+                }
+                "bankName", "bank_name" -> {
+                    bankName = if (reader.peek() == JsonReader.Token.NULL) {
+                        reader.nextNull<Any?>()
+                        ""
+                    } else reader.nextString()
+                }
+                "number", "account_number", "accountNumber" -> {
+                    accountNumber = if (reader.peek() == JsonReader.Token.NULL) {
+                        reader.nextNull<Any?>()
+                        ""
+                    } else reader.nextString()
+                }
+                "balance" -> {
+                    balance = if (reader.peek() == JsonReader.Token.NULL) {
+                        reader.nextNull<Any?>()
+                        0.0
+                    } else {
+                        try {
+                            reader.nextDouble()
+                        } catch (_: Exception) {
+                            reader.nextString().toDoubleOrNull() ?: 0.0
+                        }
+                    }
+                }
+                "vpa", "upi_vpa", "upiVpa" -> {
+                    upiVpa = if (reader.peek() == JsonReader.Token.NULL) {
+                        reader.nextNull<Any?>()
+                        ""
+                    } else reader.nextString()
+                }
+                else -> reader.skipValue()
+            }
+        }
+        reader.endObject()
+        return BankAccount(type, bankName, accountNumber, balance, upiVpa)
+    }
+
+    @ToJson
+    fun toJson(writer: JsonWriter, value: BankAccount?) {
+        if (value == null) {
+            writer.nullValue()
+            return
+        }
+        writer.beginObject()
+        writer.name("type").value(value.type)
+        writer.name("bankName").value(value.bankName)
+        writer.name("number").value(value.accountNumber)
+        writer.name("balance").value(value.balance)
+        writer.name("vpa").value(value.upiVpa)
+        writer.endObject()
+    }
+}
+
+/**
+ * User Profile / Account information.
+ * Custom JSON adapter handles both "mobile" and "mobile_number".
+ */
 data class UserProfile(
-    @Json(name = "username") val username: String = "",
-    @Json(name = "name") val name: String = "",
-    @Json(name = "mobile_number") val mobileNumber: String = "",
-    @Json(name = "email") val email: String = "",
-    @Json(name = "accounts") val accounts: List<BankAccount> = emptyList()
-)
+    val username: String = "",
+    val name: String = "",
+    val mobileNumber: String = "",
+    val email: String = "",
+    val accounts: List<BankAccount> = emptyList()
+) {
+    val displayMobile: String get() = mobileNumber
+}
+
+class UserProfileJsonAdapter {
+    @FromJson
+    fun fromJson(reader: JsonReader, accountsAdapter: JsonAdapter<List<BankAccount>>): UserProfile {
+        var username = ""
+        var name = ""
+        var mobileNumber = ""
+        var email = ""
+        var accounts: List<BankAccount> = emptyList()
+
+        if (reader.peek() == JsonReader.Token.NULL) {
+            reader.nextNull<Any?>()
+            return UserProfile()
+        }
+
+        reader.beginObject()
+        while (reader.hasNext()) {
+            when (reader.nextName()) {
+                "username" -> {
+                    username = if (reader.peek() == JsonReader.Token.NULL) {
+                        reader.nextNull<Any?>()
+                        ""
+                    } else reader.nextString()
+                }
+                "name" -> {
+                    name = if (reader.peek() == JsonReader.Token.NULL) {
+                        reader.nextNull<Any?>()
+                        ""
+                    } else reader.nextString()
+                }
+                "mobile", "mobile_number", "mobileNumber" -> {
+                    mobileNumber = if (reader.peek() == JsonReader.Token.NULL) {
+                        reader.nextNull<Any?>()
+                        ""
+                    } else reader.nextString()
+                }
+                "email" -> {
+                    email = if (reader.peek() == JsonReader.Token.NULL) {
+                        reader.nextNull<Any?>()
+                        ""
+                    } else reader.nextString()
+                }
+                "accounts" -> {
+                    accounts = if (reader.peek() == JsonReader.Token.NULL) {
+                        reader.nextNull<Any?>()
+                        emptyList()
+                    } else {
+                        accountsAdapter.fromJson(reader) ?: emptyList()
+                    }
+                }
+                else -> reader.skipValue()
+            }
+        }
+        reader.endObject()
+        return UserProfile(username, name, mobileNumber, email, accounts)
+    }
+
+    @ToJson
+    fun toJson(writer: JsonWriter, value: UserProfile?, accountsAdapter: JsonAdapter<List<BankAccount>>) {
+        if (value == null) {
+            writer.nullValue()
+            return
+        }
+        writer.beginObject()
+        writer.name("username").value(value.username)
+        writer.name("name").value(value.name)
+        writer.name("mobile").value(value.mobileNumber)
+        writer.name("email").value(value.email)
+        writer.name("accounts")
+        accountsAdapter.toJson(writer, value.accounts)
+        writer.endObject()
+    }
+}
 
 /**
  * Request: POST /create
+ * Matching the documented schema:
+ * {
+ *   "name": "Asha Patel",
+ *   "mobile": "9876543210",
+ *   "email": "asha@example.com",
+ *   "username": "asha",
+ *   "accounts": [
+ *     {
+ *       "type": "savings",
+ *       "bankName": "Example Bank",
+ *       "number": "1234567890",
+ *       "balance": 2500.0,
+ *       "vpa": "asha@example"
+ *     }
+ *   ]
+ * }
  */
 @JsonClass(generateAdapter = true)
 data class CreateUserRequest(
     @Json(name = "name") val name: String,
-    @Json(name = "mobile_number") val mobileNumber: String,
+    @Json(name = "mobile") val mobile: String,
     @Json(name = "email") val email: String,
     @Json(name = "username") val username: String,
     @Json(name = "accounts") val accounts: List<BankAccount>? = null
-)
+) {
+    val mobileNumber: String
+        get() = mobile
+}
 
 /**
  * Request: POST /create/payment

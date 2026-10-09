@@ -43,12 +43,10 @@ Run `./build.sh` from any directory to build the debug APK. The script uses the 
 - **Custom Payment Amount**: Request QR codes with pre-set payment amounts.
 - **Share & Copy**: Native Android sharing via `Intent.ACTION_SEND` and one-tap copy of UPI VPAs.
 
-### 6. 🌐 Dynamic Backend URL & Health Monitor
-- **Default Server URL**: Automatically connects to **`http://147.224.251.137:8001`**.
-- **Configurable Base URL**: Change server address on the fly without recompiling.
-- **Pre-set Options**: Quick-select presets for the main remote server (`http://147.224.251.137:8001`), Android Emulator (`http://10.0.2.2:5000`, `http://10.0.2.2:8000`), or custom host addresses.
-- **Live Ping**: Health check tool running `GET /` to verify backend reachability and latency.
-- **Persistent Storage**: Retained across launches using Jetpack DataStore Preferences.
+### 6. 🌐 Internal Backend Connection & Offline Handling
+- **Secure Internal Connectivity**: Connects to the backend REST service internally.
+- **Resilient Offline Architecture**: Automatically detects connection dropouts with user-friendly retry states.
+- **Persistent Preferences**: User configuration and active profile states retained using Jetpack DataStore Preferences.
 
 ### 7. 🔐 Biometric Authentication & Secure App-Unlock
 - **Hardware & Enrolled Biometric Detection**: Seamlessly checks whether Fingerprint or Face recognition is supported and enrolled on the device using AndroidX `BiometricManager`.
@@ -128,19 +126,11 @@ The UI and UX architecture strictly incorporates foundational interaction design
 
 ---
 
-## ⚙️ Setup and Network Configuration
-
-### 1. Default API Server
-The app defaults to:
-```
-http://147.224.251.137:8001
-```
-Android's `network_security_config.xml` explicitly permits cleartext HTTP traffic for `147.224.251.137`, `10.0.2.2`, and `localhost` during development.
-
-### 2. Changing the Server URL
-- Tap the **Server Settings icon (Dns)** in the top app bar on the Dashboard or Profile screen.
-- Select from the presets or enter any custom IP/URL.
-- Tap **Test Connection (Ping GET /)** to verify connectivity before saving.
+## ⚙️ Network Architecture
+ 
+- **Networking Engine**: Retrofit 2 + OkHttp 4 + Moshi with Kotlin reflection and type adapters.
+- **Cleartext Traffic**: Network security configuration permits cleartext HTTP during development while enforcing secure protocols for production.
+- **Privacy & Security**: All API endpoints and backend configurations are encapsulated internally to prevent leakage of server details or credentials in user-facing UI.
 
 ---
 

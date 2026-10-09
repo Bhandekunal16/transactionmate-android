@@ -8,7 +8,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import com.example.ui.budgets.BudgetsScreen
-import com.example.ui.components.ServerConfigDialog
 import com.example.ui.dashboard.DashboardScreen
 import com.example.ui.profile.ProfileScreen
 import com.example.ui.qr.QrScreen
@@ -22,15 +21,12 @@ fun MainAppScaffold(
     modifier: Modifier = Modifier
 ) {
     var currentScreen by remember { mutableStateOf(Screen.DASHBOARD) }
-    var showServerConfigDialog by remember { mutableStateOf(false) }
 
     // Quick action triggers passed from Dashboard to other screens
     var triggerAddTransactionCredit by remember { mutableStateOf<Boolean?>(null) }
     var triggerAddBudget by remember { mutableStateOf(false) }
 
     val snackbarHostState = remember { SnackbarHostState() }
-    val baseUrl by viewModel.baseUrl.collectAsState()
-    val connectionState by viewModel.connectionState.collectAsState()
 
     // Listen to action status notifications
     LaunchedEffect(viewModel) {
@@ -86,8 +82,7 @@ fun MainAppScaffold(
                         onOpenAddBudget = {
                             triggerAddBudget = true
                             currentScreen = Screen.BUDGETS
-                        },
-                        onOpenServerConfig = { showServerConfigDialog = true }
+                        }
                     )
                 }
                 Screen.TRANSACTIONS -> {
@@ -110,7 +105,6 @@ fun MainAppScaffold(
                 Screen.PROFILE -> {
                     ProfileScreen(
                         viewModel = viewModel,
-                        onOpenServerConfig = { showServerConfigDialog = true },
                         onNavigateToAppearance = { currentScreen = Screen.APPEARANCE }
                     )
                 }
@@ -122,15 +116,5 @@ fun MainAppScaffold(
                 }
             }
         }
-    }
-
-    if (showServerConfigDialog) {
-        ServerConfigDialog(
-            currentUrl = baseUrl,
-            connectionState = connectionState,
-            onDismiss = { showServerConfigDialog = false },
-            onSaveUrl = { newUrl -> viewModel.updateBaseUrl(newUrl) },
-            onTestPing = { viewModel.testConnection() }
-        )
     }
 }

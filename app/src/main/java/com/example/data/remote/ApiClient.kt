@@ -1,5 +1,7 @@
 package com.example.data.remote
 
+import com.example.data.model.BankAccountJsonAdapter
+import com.example.data.model.UserProfileJsonAdapter
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.Types
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
@@ -8,10 +10,13 @@ import okhttp3.logging.HttpLoggingInterceptor
 import org.json.JSONArray
 import org.json.JSONObject
 import retrofit2.Retrofit
+import retrofit2.converter.moshi.MoshiConverterFactory
 import java.util.concurrent.TimeUnit
 
 object ApiClient {
     val moshi: Moshi = Moshi.Builder()
+        .add(BankAccountJsonAdapter())
+        .add(UserProfileJsonAdapter())
         .addLast(KotlinJsonAdapterFactory())
         .build()
 
@@ -38,6 +43,7 @@ object ApiClient {
             val retrofit = Retrofit.Builder()
                 .baseUrl(normalizedUrl)
                 .client(okHttpClient)
+                .addConverterFactory(MoshiConverterFactory.create(moshi))
                 .build()
             currentService = retrofit.create(ApiService::class.java)
         }
@@ -106,20 +112,36 @@ object ApiClient {
 
     /**
      * Extract an error or informative message from error or success JSON body.
+     * Sanitizes messages to never leak URLs, IP addresses, or internal exception traces.
      */
     fun extractMessage(jsonStr: String?): String? {
         if (jsonStr.isNullOrBlank()) return null
         return try {
             val obj = JSONObject(jsonStr)
-            when {
+            val extracted = when {
                 obj.has("message") && !obj.isNull("message") -> obj.getString("message")
                 obj.has("error") && !obj.isNull("error") -> obj.getString("error")
                 obj.has("detail") && !obj.isNull("detail") -> obj.getString("detail")
                 obj.has("msg") && !obj.isNull("msg") -> obj.getString("msg")
                 else -> null
             }
+            if (extracted != null && isUserSafeMessage(extracted)) extracted else null
         } catch (_: Exception) {
             null
         }
+    }
+
+    private fun isUserSafeMessage(message: String): Boolean {
+        val lower = message.lowercase()
+        return !lower.contains("http://") &&
+               !lower.contains("https://") &&
+               !lower.contains("147.") &&
+               !lower.contains("traceback") &&
+               !lower.contains("exception") &&
+               !lower.contains("syntaxerror") &&
+               !lower.contains("internal server") &&
+               !lower.contains("retrofit") &&
+               !lower.contains("okhttp") &&
+               !lower.contains("failed to connect")
     }
 }

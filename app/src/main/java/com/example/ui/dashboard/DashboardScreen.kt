@@ -28,6 +28,7 @@ import com.example.ui.components.*
 import com.example.ui.theme.CreditGreen
 import com.example.ui.theme.DebitRed
 import com.example.ui.theme.ForestGreenPrimary
+import com.example.viewmodel.ConnectionState
 import com.example.viewmodel.TransactionMateViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -39,12 +40,11 @@ fun DashboardScreen(
     onNavigateToQr: () -> Unit,
     onOpenAddTransaction: (isCredit: Boolean) -> Unit,
     onOpenAddBudget: () -> Unit,
-    onOpenServerConfig: () -> Unit,
+    onOpenServerConfig: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val dashboardState by viewModel.dashboardState.collectAsState()
     val connectionState by viewModel.connectionState.collectAsState()
-    val baseUrl by viewModel.baseUrl.collectAsState()
     val currency by viewModel.currencySymbol.collectAsState()
     val activeUserName by viewModel.activeUserName.collectAsState()
     val activeUsername by viewModel.activeUsername.collectAsState()
@@ -73,12 +73,6 @@ fun DashboardScreen(
                     ) {
                         Icon(Icons.Default.Refresh, contentDescription = "Refresh Data")
                     }
-                    IconButton(
-                        onClick = onOpenServerConfig,
-                        modifier = Modifier.testTag("server_settings_button")
-                    ) {
-                        Icon(Icons.Default.Dns, contentDescription = "Server Settings")
-                    }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background
@@ -94,13 +88,35 @@ fun DashboardScreen(
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Connection banner
-            item {
-                ConnectionStatusBar(
-                    connectionState = connectionState,
-                    baseUrl = baseUrl,
-                    onOpenSettings = onOpenServerConfig
-                )
+            // Connection banner - only show if error with user-friendly retry message
+            if (connectionState is ConnectionState.Error) {
+                item {
+                    Surface(
+                        color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.7f),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { viewModel.refreshAll() }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.WifiOff,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = "Unable to connect. Tap to retry.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                        }
+                    }
+                }
             }
 
             // Hero Balance Card

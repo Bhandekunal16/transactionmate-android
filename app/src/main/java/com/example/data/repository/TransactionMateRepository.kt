@@ -1,5 +1,6 @@
 package com.example.data.repository
 
+import android.util.Log
 import com.example.data.model.*
 import com.example.data.preferences.AppPreferences
 import com.example.data.remote.ApiClient
@@ -11,13 +12,19 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
-import okhttp3.ResponseBody
 import org.json.JSONObject
-import retrofit2.Response
+import java.io.IOException
+import java.net.ConnectException
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
 
 class TransactionMateRepository(
     private val preferences: AppPreferences
 ) {
+    companion object {
+        private const val TAG = "TransactionMateRepo"
+    }
+
     private val _currentUserProfile = MutableStateFlow<UserProfile?>(null)
     val currentUserProfile: StateFlow<UserProfile?> = _currentUserProfile.asStateFlow()
 
@@ -27,26 +34,45 @@ class TransactionMateRepository(
     }
 
     /**
-     * Test connection to backend health check GET /
+     * Map low-level network exceptions to user-friendly messages.
+     * Raw exceptions, hostnames, IP addresses, and ports are never shown to the user.
+     */
+    private fun handleException(e: Exception, fallbackMessage: String): NetworkResult.Error {
+        Log.e(TAG, "Network operation encountered exception: ${e.javaClass.simpleName}", e)
+        val userFriendlyMessage = when (e) {
+            is SocketTimeoutException -> "The request took too long. Please try again."
+            is UnknownHostException -> "Unable to connect. Please check your internet connection and try again."
+            is ConnectException -> "The service is temporarily unavailable. Please try again later."
+            is IOException -> "Unable to connect. Please check your internet connection and try again."
+            else -> fallbackMessage
+        }
+        return NetworkResult.Error(userFriendlyMessage, cause = e)
+    }
+
+    /**
+     * Sanitize server response messages so no raw technical/HTTP codes or server details leak.
+     */
+    private fun sanitizeMessage(rawMsg: String?, fallbackMessage: String): String {
+        val extracted = ApiClient.extractMessage(rawMsg)
+        return if (!extracted.isNullOrBlank()) extracted else fallbackMessage
+    }
+
+    /**
+     * Check backend reachability
      */
     suspend fun checkHealth(): NetworkResult<HealthCheckResponse> = withContext(Dispatchers.IO) {
-        val baseUrl = preferences.baseUrlFlow.first()
         try {
             val response = getService().healthCheck()
             val raw = response.body()?.string() ?: ""
             if (response.isSuccessful) {
                 val parsed = ApiClient.parseObject<HealthCheckResponse>(raw)
-                    ?: HealthCheckResponse(status = "ok", message = raw.ifBlank { "Service is reachable" })
-                NetworkResult.Success(parsed, "Connected to $baseUrl")
+                    ?: HealthCheckResponse(status = "ok", message = "Service is online")
+                NetworkResult.Success(parsed, "Service is online")
             } else {
-                val errorMsg = ApiClient.extractMessage(raw) ?: "Server responded with HTTP ${response.code()}"
-                NetworkResult.Error(errorMsg, response.code())
+                NetworkResult.Error("The service is temporarily unavailable. Please try again later.", response.code())
             }
         } catch (e: Exception) {
-            NetworkResult.Error(
-                message = "Failed to connect to $baseUrl: ${e.localizedMessage ?: "Connection refused"}",
-                cause = e
-            )
+            handleException(e, "The service is temporarily unavailable. Please try again later.")
         }
     }
 
@@ -69,14 +95,13 @@ class TransactionMateRepository(
                     )
                 _currentUserProfile.value = parsed
                 preferences.setActiveUser(parsed.username, parsed.name)
-                NetworkResult.Success(parsed, ApiClient.extractMessage(raw) ?: "User created successfully")
+                NetworkResult.Success(parsed, "User profile created successfully")
             } else {
-                val msg = ApiClient.extractMessage(raw)
-                    ?: "Failed to create user (HTTP ${response.code()})"
+                val msg = sanitizeMessage(raw, "Unable to create your profile. Please check your details and try again.")
                 NetworkResult.Error(msg, response.code())
             }
         } catch (e: Exception) {
-            NetworkResult.Error("Network error: ${e.localizedMessage}", cause = e)
+            handleException(e, "Unable to create your profile. Please check your details and try again.")
         }
     }
 
@@ -95,7 +120,6 @@ class TransactionMateRepository(
                     preferences.setActiveUser(profile.username, profile.name)
                     NetworkResult.Success(profile)
                 } else {
-                    // Try parsing accounts list directly
                     val accountsList = ApiClient.parseList<BankAccount>(raw)
                     val synthesized = UserProfile(
                         username = username,
@@ -106,11 +130,11 @@ class TransactionMateRepository(
                     NetworkResult.Success(synthesized)
                 }
             } else {
-                val msg = ApiClient.extractMessage(raw) ?: "User account not found (HTTP ${response.code()})"
+                val msg = sanitizeMessage(raw, "Unable to load profile. Please try again.")
                 NetworkResult.Error(msg, response.code())
             }
         } catch (e: Exception) {
-            NetworkResult.Error("Network error: ${e.localizedMessage}", cause = e)
+            handleException(e, "Unable to load profile. Please check your connection.")
         }
     }
 
@@ -123,14 +147,14 @@ class TransactionMateRepository(
             val raw = response.body()?.string() ?: response.errorBody()?.string().orEmpty()
 
             if (response.isSuccessful) {
-                val msg = ApiClient.extractMessage(raw) ?: "Transaction recorded successfully"
+                val msg = sanitizeMessage(raw, "Transaction recorded successfully")
                 NetworkResult.Success(msg)
             } else {
-                val msg = ApiClient.extractMessage(raw) ?: "Failed to record transaction (${response.code()})"
+                val msg = sanitizeMessage(raw, "Unable to record transaction. Please try again.")
                 NetworkResult.Error(msg, response.code())
             }
         } catch (e: Exception) {
-            NetworkResult.Error("Network error: ${e.localizedMessage}", cause = e)
+            handleException(e, "Unable to record transaction. Please try again.")
         }
     }
 
@@ -146,11 +170,11 @@ class TransactionMateRepository(
                 val list = ApiClient.parseList<TransactionItem>(raw)
                 NetworkResult.Success(list)
             } else {
-                val msg = ApiClient.extractMessage(raw) ?: "Failed to fetch transactions (${response.code()})"
+                val msg = sanitizeMessage(raw, "Unable to load transaction history. Please try again.")
                 NetworkResult.Error(msg, response.code())
             }
         } catch (e: Exception) {
-            NetworkResult.Error("Network error: ${e.localizedMessage}", cause = e)
+            handleException(e, "Unable to load transaction history. Please try again.")
         }
     }
 
@@ -163,14 +187,14 @@ class TransactionMateRepository(
             val raw = response.body()?.string() ?: response.errorBody()?.string().orEmpty()
 
             if (response.isSuccessful) {
-                val msg = ApiClient.extractMessage(raw) ?: "Budget created successfully"
+                val msg = sanitizeMessage(raw, "Budget created successfully")
                 NetworkResult.Success(msg)
             } else {
-                val msg = ApiClient.extractMessage(raw) ?: "Failed to create budget (${response.code()})"
+                val msg = sanitizeMessage(raw, "Unable to create budget. Please try again.")
                 NetworkResult.Error(msg, response.code())
             }
         } catch (e: Exception) {
-            NetworkResult.Error("Network error: ${e.localizedMessage}", cause = e)
+            handleException(e, "Unable to create budget. Please try again.")
         }
     }
 
@@ -183,7 +207,6 @@ class TransactionMateRepository(
             val raw = response.body()?.string() ?: response.errorBody()?.string().orEmpty()
 
             if (response.isSuccessful) {
-                // Could be list of budgets or single budget object
                 val list = ApiClient.parseList<BudgetItem>(raw)
                 if (list.isNotEmpty()) {
                     NetworkResult.Success(list)
@@ -196,11 +219,11 @@ class TransactionMateRepository(
                     }
                 }
             } else {
-                val msg = ApiClient.extractMessage(raw) ?: "Failed to retrieve budgets (${response.code()})"
+                val msg = sanitizeMessage(raw, "Unable to load budgets. Please try again.")
                 NetworkResult.Error(msg, response.code())
             }
         } catch (e: Exception) {
-            NetworkResult.Error("Network error: ${e.localizedMessage}", cause = e)
+            handleException(e, "Unable to load budgets. Please try again.")
         }
     }
 
@@ -213,14 +236,14 @@ class TransactionMateRepository(
             val raw = response.body()?.string() ?: response.errorBody()?.string().orEmpty()
 
             if (response.isSuccessful) {
-                val msg = ApiClient.extractMessage(raw) ?: "Budget updated successfully"
+                val msg = sanitizeMessage(raw, "Budget updated successfully")
                 NetworkResult.Success(msg)
             } else {
-                val msg = ApiClient.extractMessage(raw) ?: "Failed to update budget (${response.code()})"
+                val msg = sanitizeMessage(raw, "Unable to update budget. Please try again.")
                 NetworkResult.Error(msg, response.code())
             }
         } catch (e: Exception) {
-            NetworkResult.Error("Network error: ${e.localizedMessage}", cause = e)
+            handleException(e, "Unable to update budget. Please try again.")
         }
     }
 
@@ -237,11 +260,11 @@ class TransactionMateRepository(
                     ?: TxnStatisticsResponse()
                 NetworkResult.Success(stats)
             } else {
-                val msg = ApiClient.extractMessage(raw) ?: "Failed to retrieve statistics (${response.code()})"
+                val msg = sanitizeMessage(raw, "Unable to load financial statistics. Please try again.")
                 NetworkResult.Error(msg, response.code())
             }
         } catch (e: Exception) {
-            NetworkResult.Error("Network error: ${e.localizedMessage}", cause = e)
+            handleException(e, "Unable to load financial statistics. Please try again.")
         }
     }
 
@@ -256,7 +279,6 @@ class TransactionMateRepository(
             if (response.isSuccessful) {
                 val parsed = ApiClient.parseObject<MonthlyTxnResponse>(raw)
                 val total = parsed?.totalDebitAmount ?: run {
-                    // Try parsing as simple number or object with amount
                     try {
                         val json = JSONObject(raw)
                         when {
@@ -272,11 +294,11 @@ class TransactionMateRepository(
                 }
                 NetworkResult.Success(total)
             } else {
-                val msg = ApiClient.extractMessage(raw) ?: "Failed to fetch monthly total (${response.code()})"
+                val msg = sanitizeMessage(raw, "Unable to load monthly spending summary. Please try again.")
                 NetworkResult.Error(msg, response.code())
             }
         } catch (e: Exception) {
-            NetworkResult.Error("Network error: ${e.localizedMessage}", cause = e)
+            handleException(e, "Unable to load monthly spending summary. Please try again.")
         }
     }
 
@@ -288,14 +310,14 @@ class TransactionMateRepository(
             val response = getService().sendReport()
             val raw = response.body()?.string() ?: response.errorBody()?.string().orEmpty()
             if (response.isSuccessful) {
-                val msg = ApiClient.extractMessage(raw) ?: "Financial report dispatched via email successfully"
+                val msg = sanitizeMessage(raw, "Financial report dispatched successfully")
                 NetworkResult.Success(msg)
             } else {
-                val msg = ApiClient.extractMessage(raw) ?: "Failed to send report (${response.code()})"
+                val msg = sanitizeMessage(raw, "Unable to send report. Please try again.")
                 NetworkResult.Error(msg, response.code())
             }
         } catch (e: Exception) {
-            NetworkResult.Error("Network error: ${e.localizedMessage}", cause = e)
+            handleException(e, "Unable to send report. Please try again.")
         }
     }
 
@@ -308,17 +330,14 @@ class TransactionMateRepository(
             val raw = response.body()?.string() ?: response.errorBody()?.string().orEmpty()
 
             if (response.isSuccessful) {
-                // Try parsing list first
                 val list = ApiClient.parseList<QrItem>(raw)
                 if (list.isNotEmpty()) {
                     NetworkResult.Success(list)
                 } else {
-                    // Try parsing single QrItem
                     val single = ApiClient.parseObject<QrItem>(raw)
                     if (single != null) {
                         NetworkResult.Success(listOf(single))
                     } else {
-                        // If backend returns raw string (like base64 or UPI string)
                         if (raw.isNotBlank()) {
                             NetworkResult.Success(
                                 listOf(
@@ -336,11 +355,11 @@ class TransactionMateRepository(
                     }
                 }
             } else {
-                val msg = ApiClient.extractMessage(raw) ?: "Failed to generate QR (${response.code()})"
+                val msg = sanitizeMessage(raw, "Unable to generate payment QR code. Please try again.")
                 NetworkResult.Error(msg, response.code())
             }
         } catch (e: Exception) {
-            NetworkResult.Error("Network error: ${e.localizedMessage}", cause = e)
+            handleException(e, "Unable to generate payment QR code. Please try again.")
         }
     }
 }
