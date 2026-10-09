@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Rounded card base -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M32,34 h44 c3.31,0 6,2.69 6,6 v28 c0,3.31 -2.69,6 -6,6 h-44 c-3.31,0 -6,-2.69 -6,-6 v-28 c0,-3.31 2.69,-6 6,-6 z" />
+    <!-- Magnetic strip / header strip -->
+    <path
+        android:fillColor="#20C997"
+        android:pathData="M26,42 h56 v7 h-56 z" />
+    <!-- Outgoing arrow (Credit / Transfer) -->
+    <path
+        android:fillColor="#0A3622"
+        android:pathData="M35,62 L43,55 L43,59 L51,59 L51,65 L43,65 L43,69 Z" />
+    <!-- Incoming arrow (Deposit / Return) -->
+    <path
+        android:fillColor="#198754"
+        android:pathData="M73,62 L65,69 L65,65 L57,65 L57,59 L65,59 L65,55 Z" />
+    <!-- Chip or coin dot -->
+    <path
+        android:fillColor="#FFD700"
+        android:pathData="M54,48 A4,4 0 1,0 54,56 A4,4 0 1,0 54,48 Z" />
+</vector>
