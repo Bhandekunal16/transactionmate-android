@@ -2,6 +2,10 @@
 
 TransactionMate is a modern, full-featured Android personal finance and transaction management application built with **Jetpack Compose**, **Material 3**, and **MVVM architecture**. It connects directly to the TransactionMate REST API server.
 
+## Build
+
+Run `./build.sh` from any directory to build the debug APK. The script uses the project Gradle wrapper and creates a local debug keystore if one is not present. The APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
+
 ---
 
 ## 🌟 Features
