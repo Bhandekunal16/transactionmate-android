@@ -19,4 +19,4 @@ if [ ! -f "$PROJECT_DIR/debug.keystore" ]; then
     -keysize 2048
 fi
 
-exec "$PROJECT_DIR/gradlew" :app:assembleDebug "$@"
+exec sh "$PROJECT_DIR/gradlew" :app:assembleDebug "$@"
